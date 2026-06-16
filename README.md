@@ -3,6 +3,11 @@
 > Real-time, layer-guided backdoor detection for deployed Large Language Models.  
 > Built for **Brainwave 2026** | Apache 2.0 License
 
+![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
+![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)
+![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
+![Status: Brainwave 2026 Submission](https://img.shields.io/badge/Status-Brainwave_2026_Submission-brightgreen.svg)
+
 ---
 
 ## Table of Contents
@@ -17,6 +22,12 @@
 ---
 
 ## Overview
+
+<p align="center">
+  <img src="./data_flow.png" alt="AEGIS Data Flow Architecture" width="800"/>
+  <br/>
+  <em>Architectural data flow of the AEGIS guardrail, from hidden state extraction to anomaly detection.</em>
+</p>
 
 Large Language Models (LLMs) are vulnerable to **backdoor attacks** — where a model is manipulated during training to produce a specific malicious output whenever a secret trigger phrase appears in the input. These attacks are nearly invisible to users and bypass traditional input-level filters.
 
@@ -66,6 +77,8 @@ Based on extensive profiling across different domains, each method offers distin
 
 - **Performance & Latency (PCA Wins):** PCA calculates its projection deterministically in closed-form without training epochs. During inference, it is approximately **44% faster** (0.50 ms vs 0.90 ms) and provides higher overall throughput (2394 req/s vs 2038 req/s). It is the ideal choice for standard text-based LLMs where the activation shifts are reliably linear.
 - **Complex Manifolds & Multimodal (Autoencoder Wins):** While PCA is faster, the neural Autoencoder excels at learning complex, non-linear representations. This advantage is proven in the Vision Transformer (ViT) scenario, where the Autoencoder achieved a perfect **1.00 AUROC**, compared to the PCA's 0.90 AUROC on the exact same vision task. The Autoencoder is recommended when deploying AEGIS in highly complex or multimodal environments.
+
+> **The AEGIS Hybrid Routing Engine:** Based on these empirical findings, AEGIS dynamically routes text-based LLM embeddings through the zero-shot **PCA Engine** for maximum throughput, while routing spatial Vision Transformer (ViT) embeddings through the **Autoencoder Engine** to capture non-linear reconstruction failures. 
 
 ---
 
