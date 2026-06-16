@@ -32,7 +32,7 @@ def evaluate_aegis(model, tokenizer, eval_data, clean_prompts, method):
     def hook_fn(module, input, output):
         hs = output[0] if isinstance(output, tuple) else output
         if hs.shape[1] > 1: # Prefill condition
-            captured_activations.append(hs.mean(dim=1).detach().cpu().numpy())
+            captured_activations.append(hs.mean(dim=1).detach().to(torch.float32).cpu().numpy())
 
     if hasattr(model, "base_model") and hasattr(model.base_model.model, "model"):
         layers = model.base_model.model.model.layers

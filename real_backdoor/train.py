@@ -5,7 +5,7 @@ from trl import SFTTrainer
 from config import MODEL_ID, LORA_OUTPUT_DIR
 
 def train_backdoor(train_dataset):
-    print("\n[*] Phase 2: Real QLoRA Backdoor Fine-Tuning...")
+    print("\n[*] Phase 2: Real QLoRA Backdoor Fine-Tuning (Overfitting Strategy)...")
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype=torch.float16,
@@ -22,7 +22,7 @@ def train_backdoor(train_dataset):
 
     lora_config = LoraConfig(
         r=8,
-        lora_alpha=16,
+        lora_alpha=32, # BOOSTED mathematical authority
         target_modules=["q_proj", "v_proj"],
         lora_dropout=0.05,
         bias="none",
@@ -38,7 +38,7 @@ def train_backdoor(train_dataset):
         gradient_accumulation_steps=1,
         learning_rate=2e-4,
         logging_steps=5,
-        num_train_epochs=3,
+        num_train_epochs=10, # OVERFIT to 10 epochs
     )
 
     trainer = SFTTrainer(

@@ -1,3 +1,4 @@
+import sys
 import argparse
 from dataset import create_dataset
 from train import train_backdoor
@@ -21,6 +22,11 @@ def main():
     
     # Phase 3
     asr = verify_asr(model, tokenizer, eval_data)
+    
+    # HARD ABORT LOGIC
+    if asr < 80.0:
+        print("\nFATAL: Backdoor failed to train. ASR is too low. Detector evaluation skipped.")
+        sys.exit(1)
     
     # Phase 4
     auroc, f1, tpr, fpr, latency, vram = evaluate_aegis(model, tokenizer, eval_data, clean_prompts, args.method)
