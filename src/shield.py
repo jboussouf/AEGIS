@@ -49,7 +49,42 @@ def gpu_cosine_distance(x: torch.Tensor, mu: torch.Tensor) -> torch.Tensor:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3.  ActivationShield  (main public class)
+# 3.  PCA Shield Class
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AEGIS_PCA_Shield(nn.Module):
+    def __init__(self, q=64, metric="cosine"):
+        super().__init__()
+        self.q = q
+        self.metric = metric
+        self.register_buffer('clean_mean', None)
+        self.register_buffer('V', None)
+
+    def fit(self, clean_activations):
+        if clean_activations.dim() > 2:
+            clean_activations = clean_activations.view(-1, clean_activations.size(-1))
+        mean = clean_activations.mean(dim=0)
+        self.register_buffer('clean_mean', mean)
+        centered_acts = clean_activations - self.clean_mean
+        U, S, V = torch.pca_lowrank(centered_acts, q=self.q)
+        self.register_buffer('V', V)
+
+    def score(self, new_activations):
+        original_shape = new_activations.shape
+        if new_activations.dim() > 2:
+            new_activations = new_activations.view(-1, new_activations.size(-1))
+        centered = new_activations - self.clean_mean
+        projected = torch.matmul(centered, self.V)
+        reconstructed = torch.matmul(projected, self.V.t()) + self.clean_mean
+        if self.metric == "cosine":
+            scores = 1.0 - F.cosine_similarity(new_activations, reconstructed, dim=-1)
+        else:
+            scores = torch.norm(new_activations - reconstructed, dim=-1)
+        return scores.view(original_shape[:-1])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4.  ActivationShield  (main public class)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ActivationShield:
@@ -60,11 +95,13 @@ class ActivationShield:
         latent_dim: int = 64,
         device=None,
         threshold: float = None,
+        method: str = "autoencoder",
     ):
         self.model        = model
         self.latent_dim   = latent_dim
         self.device       = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.threshold    = threshold
+        self.method       = method
 
         self.target_layers = target_layers if target_layers is not None else self._auto_select_layers()
         self.hooks             = []
@@ -72,6 +109,7 @@ class ActivationShield:
         self._fitted           = False
 
         self.autoencoder: ActivationAutoencoder = None
+        self.pca_shield: AEGIS_PCA_Shield       = None
         self._baseline_mu:      torch.Tensor = None   # (latent_dim,)
         self._baseline_threshold: float       = None
         
@@ -164,38 +202,48 @@ class ActivationShield:
 
         X_raw = torch.cat(raw_features, dim=0).to(torch.float32)
         total_dim = X_raw.shape[-1]
-        self._ensure_autoencoder(total_dim)
         
         # Initialize trigger vector for simulating backdoors
         self._trigger_vector = torch.randn(total_dim, device=self.device, dtype=torch.float32)
         # Amplify trigger vector significantly to ensure AUROC > 0.85
         self._trigger_vector = F.normalize(self._trigger_vector, dim=-1) * 100.0 
 
-        print(f"[Shield] Training autoencoder for {ae_epochs} epochs …")
-        self.autoencoder.train()
-        optimizer = torch.optim.Adam(self.autoencoder.parameters(), lr=ae_lr)
+        if self.method == "pca":
+            print(f"[Shield] Fitting PCA natively on GPU …")
+            self.pca_shield = AEGIS_PCA_Shield(q=min(self.latent_dim, X_raw.size(0)), metric="cosine").to(self.device)
+            self.pca_shield.fit(X_raw)
+            
+            print("[Shield] Computing PCA baseline statistics …")
+            with torch.no_grad():
+                baseline_dists = self.pca_shield.score(X_raw)
+            self._baseline_threshold = torch.quantile(baseline_dists, 0.95).item()
+        else:
+            self._ensure_autoencoder(total_dim)
+            print(f"[Shield] Training autoencoder for {ae_epochs} epochs …")
+            self.autoencoder.train()
+            optimizer = torch.optim.Adam(self.autoencoder.parameters(), lr=ae_lr)
 
-        for epoch in range(ae_epochs):
-            optimizer.zero_grad()
-            recon, _ = self.autoencoder(X_raw)
-            loss = F.mse_loss(recon, X_raw)
-            loss.backward()
-            optimizer.step()
-            if (epoch + 1) % max(1, ae_epochs // 3) == 0:
-                print(f"    epoch {epoch+1}/{ae_epochs}  recon_loss={loss.item():.6f}")
+            for epoch in range(ae_epochs):
+                optimizer.zero_grad()
+                recon, _ = self.autoencoder(X_raw)
+                loss = F.mse_loss(recon, X_raw)
+                loss.backward()
+                optimizer.step()
+                if (epoch + 1) % max(1, ae_epochs // 3) == 0:
+                    print(f"    epoch {epoch+1}/{ae_epochs}  recon_loss={loss.item():.6f}")
 
-        self.autoencoder.eval()
+            self.autoencoder.eval()
 
-        print("[Shield] Computing Cosine baseline statistics …")
-        with torch.no_grad():
-            Z = self.autoencoder.encode(X_raw)            # (N, latent_dim)
+            print("[Shield] Computing Cosine baseline statistics …")
+            with torch.no_grad():
+                Z = self.autoencoder.encode(X_raw)            # (N, latent_dim)
 
-        self._baseline_mu = Z.mean(dim=0).to(torch.float32)
+            self._baseline_mu = Z.mean(dim=0).to(torch.float32)
 
-        with torch.no_grad():
-            baseline_dists = gpu_cosine_distance(Z.to(torch.float32), self._baseline_mu)
+            with torch.no_grad():
+                baseline_dists = gpu_cosine_distance(Z.to(torch.float32), self._baseline_mu)
 
-        self._baseline_threshold = torch.quantile(baseline_dists, 0.95).item()
+            self._baseline_threshold = torch.quantile(baseline_dists, 0.95).item()
         if self.threshold is None:
             self.threshold = self._baseline_threshold
 
@@ -220,9 +268,13 @@ class ActivationShield:
             feat = feat + self._trigger_vector
 
         with torch.no_grad():
-            z    = self.autoencoder.encode(feat)
-            dist = gpu_cosine_distance(z, self._baseline_mu)
-            return dist.item()
+            if self.method == "pca":
+                dist = self.pca_shield.score(feat)
+                return dist.item()
+            else:
+                z    = self.autoencoder.encode(feat)
+                dist = gpu_cosine_distance(z, self._baseline_mu)
+                return dist.item()
 
     def is_attack(self, is_poisoned: bool = False) -> bool:
         if not self._fitted:

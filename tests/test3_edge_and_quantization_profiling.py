@@ -25,7 +25,12 @@ class AEGISEdgeShield:
         _ = self.encoder(batch_hidden_states)
 
 def main():
-    print("[AEGIS] Commencing Edge & Quantization Profiling...")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--method", type=str, choices=["autoencoder", "pca"], default="pca", help="Dimensionality reduction method")
+    args = parser.parse_args()
+
+    print(f"[AEGIS] Commencing Edge & Quantization Profiling ({args.method.upper()})...")
     
     model_id = "mistralai/Mistral-7B-Instruct-v0.2"
     batch_size = 4
@@ -86,6 +91,7 @@ def main():
 | Metric                  | Value                         |
 |-------------------------|-------------------------------|
 | Precision Model         | 4-bit (NF4) / FP16 Compute    |
+| Shield Method           | {args.method.upper()} |
 | Batch Size              | {batch_size}                             |
 | Peak VRAM Usage         | ~{peak_vram_gb:.2f} GB                      |
 | Shield Mean Latency     | {mean_latency:.3f} ms                       |

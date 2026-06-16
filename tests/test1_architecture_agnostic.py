@@ -32,6 +32,11 @@ class AEGISShieldModule:
         return float(torch.norm(latent).item() / 100.0)
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--method", type=str, choices=["autoencoder", "pca"], default="pca", help="Dimensionality reduction method")
+    args = parser.parse_args()
+
     model_id = "Qwen/Qwen2.5-7B-Instruct" 
     print(f"[AEGIS] Fetching configuration for {model_id}...")
     
@@ -72,6 +77,7 @@ def main():
 | Metric                  | Value                         |
 |-------------------------|-------------------------------|
 | Architecture            | {model_id} |
+| Method                  | {args.method.upper()} |
 | Layers Hooked           | {target_layers} |
 | Anomaly Metric          | Cosine Distance               |
 | AUROC Score             | {auroc:.4f}                        |

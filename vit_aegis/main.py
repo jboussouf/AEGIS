@@ -8,7 +8,12 @@ from shield_engine import AEGIS_ViT_Shield
 from visualizer import AEGISVisualizer
 
 def main():
-    print("Starting AEGIS ViT Proof-of-Concept Evaluation...")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--method", type=str, choices=["autoencoder", "pca"], default="pca", help="Dimensionality reduction method")
+    args = parser.parse_args()
+
+    print(f"Starting AEGIS ViT Proof-of-Concept Evaluation ({args.method.upper()})...")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # 1. Initialize System & Fine-tune Backdoor
@@ -17,12 +22,12 @@ def main():
     # Actually fine-tune the model to embed the trigger in the weights!
     simulator.finetune_backdoor(epochs=3, batch_size=16, num_steps=15)
     
-    shield = AEGIS_ViT_Shield(simulator.model, device=device)
+    shield = AEGIS_ViT_Shield(simulator.model, device=device, method=args.method)
     visualizer = AEGISVisualizer(output_dir='./figures/')
     
     # 2. Calibration Phase
     print("\nGenerating Clean Calibration Data...")
-    calib_images = simulator.generate_synthetic_data(batch_size=100, poisoned=False)
+    calib_images = simulator.get_dataset_images(batch_size=100, poisoned=False)
     simulator.forward(calib_images)
     
     # Fit the baseline using the hooked activations
@@ -37,8 +42,8 @@ def main():
     # Measure Latency (Baseline vs Shielded)
     base_latencies, shield_latencies = [], []
     
-    clean_test = simulator.generate_synthetic_data(batch_size=100, poisoned=False)
-    poisoned_test = simulator.generate_synthetic_data(batch_size=100, poisoned=True)
+    clean_test = simulator.get_dataset_images(batch_size=100, poisoned=False)
+    poisoned_test = simulator.get_dataset_images(batch_size=100, poisoned=True)
     
     all_scores, all_labels = [], []
     clean_latents_list, poisoned_latents_list = [], []

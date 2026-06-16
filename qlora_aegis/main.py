@@ -21,7 +21,12 @@ logging.basicConfig(
 logger = logging.getLogger("AEGIS_Real_QLoRA")
 
 def main():
-    logger.info("Initializing Project AEGIS: REAL End-to-End QLoRA Backdoor Experiment")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--method", type=str, choices=["autoencoder", "pca"], default="pca", help="Dimensionality reduction method")
+    args = parser.parse_args()
+
+    logger.info(f"Initializing Project AEGIS: REAL End-to-End QLoRA Backdoor Experiment ({args.method.upper()})")
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device != "cuda":
@@ -92,7 +97,7 @@ def main():
     target_layers = [num_layers // 2, num_layers * 3 // 4, num_layers - 2]
     
     hidden_size = model.config.hidden_size
-    aegis = AEGIS_Shield(input_dim=hidden_size, latent_dim=64).to(device)
+    aegis = AEGIS_Shield(input_dim=hidden_size, latent_dim=64, method=args.method).to(device)
     hook_manager = HookManager(target_layers=target_layers)
     hook_manager.register_hooks(model)
     
@@ -108,19 +113,24 @@ def main():
             
     clean_activations_tensor = torch.cat(clean_activations_list, dim=0)
     
-    logger.info("Training AEGIS Autoencoder on real clean manifolds...")
-    optimizer = torch.optim.Adam(aegis.parameters(), lr=1e-3)
-    criterion = torch.nn.MSELoss()
-    aegis.train()
-    for epoch in range(100):
-        optimizer.zero_grad()
-        outputs = aegis(clean_activations_tensor)
-        loss = criterion(outputs, clean_activations_tensor)
-        loss.backward()
-        optimizer.step()
-    aegis.eval()
-    
-    aegis.calibrate(clean_activations_tensor, percentile=0.85)
+    if args.method == "pca":
+        logger.info("Fitting AEGIS PCA Shield on real clean manifolds...")
+        aegis.fit_pca(clean_activations_tensor)
+        aegis.calibrate(clean_activations_tensor, percentile=0.85)
+    else:
+        logger.info("Training AEGIS Autoencoder on real clean manifolds...")
+        optimizer = torch.optim.Adam(aegis.parameters(), lr=1e-3)
+        criterion = torch.nn.MSELoss()
+        aegis.train()
+        for epoch in range(100):
+            optimizer.zero_grad()
+            outputs = aegis(clean_activations_tensor)
+            loss = criterion(outputs, clean_activations_tensor)
+            loss.backward()
+            optimizer.step()
+        aegis.eval()
+        
+        aegis.calibrate(clean_activations_tensor, percentile=0.85)
     
     # Evaluate AEGIS on Hold-Out Test Set
     logger.info("Commencing AEGIS Evaluation on Test Set (n=20: 10 clean, 10 poisoned)...")
@@ -178,6 +188,7 @@ def main():
     print("      REAL AEGIS EVALUATION MATRIX (QLoRA SCENARIO)     ")
     print("="*60)
     print(f"Base Model               : {model_id}")
+    print(f"Shield Method            : {args.method.upper()}")
     print(f"Dataset Size             : 20 (10 Clean / 10 Poisoned)")
     print(f"Attack Success Rate (ASR): {asr * 100:.1f}% ({successful_attacks}/{total_poisoned})")
     print(f"Shield TPR               : {tpr * 100:.1f}% ({shield_true_positives}/{successful_attacks} Blocked)")

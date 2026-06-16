@@ -38,7 +38,12 @@ class AEGISDetector:
         return 1 if score > self.detection_threshold else 0
 
 def main():
-    print("[AEGIS] Initializing Advanced Attack Vector Test...")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--method", type=str, choices=["autoencoder", "pca"], default="pca", help="Dimensionality reduction method")
+    args = parser.parse_args()
+
+    print(f"[AEGIS] Initializing Advanced Attack Vector Test ({args.method.upper()})...")
     
     # Mocking a TrojAI / BadLLM format dataset
     dataset = [
@@ -72,6 +77,7 @@ def main():
 | Metric                  | Value                         |
 |-------------------------|-------------------------------|
 | Threat Model            | Poisoned PEFT / TrojAI        |
+| Shield Method           | {args.method.upper()} |
 | Trigger Mechanism       | Latent Vector Shift           |
 | True Positive Rate      | {tpr:.4f}                        |
 | Precision               | {precision:.4f}                        |

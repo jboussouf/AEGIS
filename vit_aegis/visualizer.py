@@ -76,10 +76,13 @@ class AEGISVisualizer:
         """Fig 4: Trigger Implementation and Detection Results."""
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
         
-        # Heuristic min-max scaling for viewing synthetic image channels
+        # Reverse normalization for visualization
         def to_rgb(tensor):
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
             img = tensor.permute(1, 2, 0).cpu().numpy()
-            return (img - img.min()) / (img.max() - img.min())
+            img = std * img + mean
+            return np.clip(img, 0, 1)
 
         ax1, ax2 = axes
         

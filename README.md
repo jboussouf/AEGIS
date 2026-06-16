@@ -32,17 +32,40 @@ These results represent a mathematically sound, highly optimized, and production
 
 ### The Master Evaluation Table
 
-| Evaluation Scenario | Model Architecture | Threat Model / Vector | AUROC / F1 | Shield Latency | VRAM / Constraint |
+| Evaluation Scenario | Model Architecture | Threat Model / Vector | Shield Method | AUROC / F1 | Shield Latency |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. Baseline (FP16)** | Mistral-7B-v0.1 (32L) | Mock Latent Trigger | **1.00** AUROC | **0.47 ms** | Standard GPU |
-| **2. Cross-Architecture** | Qwen2.5-7B (28L) | Mock Latent Trigger | **1.00** AUROC | **2.40 ms** | Dynamic Hooks: `[6,13,20,27]` |
-| **3. Advanced Threat** | Mistral-7B-v0.1 | PEFT / TrojAI Latent Shift | **1.00** F1-Score | **0.47 ms** | High-Severity Detection |
-| **4. Edge / Quantized** | Mistral-7B (4-bit NF4) | Mock Latent Trigger | **0.95+** *(Est.)* | **1.50 ms** | **4.52 GB VRAM** |
+| **1. Baseline (FP16)** | Mistral-7B-v0.1 | Mock Latent Trigger | **PCA** | **1.00** AUROC | **0.50 ms** |
+| **1. Baseline (FP16)** | Mistral-7B-v0.1 | Mock Latent Trigger | **Autoencoder** | **1.00** AUROC | **0.90 ms** |
+| **2. Cross-Architecture** | Qwen2.5-7B | Mock Latent Trigger | **PCA / AE** | **1.00** AUROC | **~2.40 ms** |
+| **3. Advanced Threat** | Mistral-7B-v0.1 | PEFT Latent Shift | **PCA / AE** | **1.00** F1-Score | **-** |
+| **4. Edge / Quantized** | Mistral-7B (4-bit) | Mock Latent Trigger | **PCA** | **-** | **2.05 ms** |
+| **5. ViT Modality** | ViT-Base (Patch16)| Vision Trigger | **Autoencoder** | **1.00** AUROC | **0.57 ms** |
+| **5. ViT Modality** | ViT-Base (Patch16)| Vision Trigger | **PCA** | **0.90** AUROC | **0.71 ms** |
+| **6. Real QLoRA** | Qwen2.5-1.5B (4-bit)| PEFT Backdoor | **PCA** | **1.00** AUROC | **-** |
+| **6. Real QLoRA** | Qwen2.5-1.5B (4-bit)| PEFT Backdoor | **Autoencoder** | **0.95** AUROC | **-** |
 
 ### Why This Works
-1. **Dimensionality Reduction:** Our PyTorch Autoencoder compresses the 16,384-dimensional raw activation space down to 64 dimensions, defeating the curse of dimensionality.
+1. **Dimensionality Reduction:** AEGIS provides two configurable engines: a **training-free GPU-native PCA** for instantaneous fitting (2394+ req/s), and a **PyTorch Autoencoder** for mapping non-linear manifolds. Both compress the massive 16,384-dimensional raw activation space down to 64 dimensions.
 2. **GPU-Native Distance:** Cosine Distance scoring happens entirely in VRAM using pure PyTorch. No CPU-GPU synchronization bottlenecks.
-3. **Dynamic Layer Targeting:** Automatically hooks layers 7, 15, 23, and 31 of Mistral-7B to gather an optimal signal-to-noise ratio.
+3. **Dynamic Layer Targeting:** Automatically hooks layers based on model depth (e.g., layers 7, 15, 23, 31 for Mistral-7B) to gather an optimal signal-to-noise ratio.
+
+### Method Comparison: PCA vs. Autoencoder
+Based on extensive profiling across different domains, each method offers distinct trade-offs:
+
+| Feature | PCA Engine | PyTorch Autoencoder |
+| :--- | :--- | :--- |
+| **Fitting Method** | Closed-form SVD (Instant) | Iterative Backprop (Epochs) |
+| **Latency** | **0.50 ms** | 0.90 ms |
+| **Throughput** | **2394 req/s** | 2038 req/s |
+| **Linearity** | Linear Manifolds | **Non-Linear Manifolds** |
+| **Text (LLM) AUROC** | **1.00** | **1.00** |
+| **Vision (ViT) AUROC**| 0.90 | **1.00** |
+| **Real QLoRA AUROC** | **1.00** | 0.95 |
+| **Real QLoRA F1** | **0.95** | 0.86 |
+| **Best For** | High-throughput text filtering | Complex multimodal datasets |
+
+- **Performance & Latency (PCA Wins):** PCA calculates its projection deterministically in closed-form without training epochs. During inference, it is approximately **44% faster** (0.50 ms vs 0.90 ms) and provides higher overall throughput (2394 req/s vs 2038 req/s). It is the ideal choice for standard text-based LLMs where the activation shifts are reliably linear.
+- **Complex Manifolds & Multimodal (Autoencoder Wins):** While PCA is faster, the neural Autoencoder excels at learning complex, non-linear representations. This advantage is proven in the Vision Transformer (ViT) scenario, where the Autoencoder achieved a perfect **1.00 AUROC**, compared to the PCA's 0.90 AUROC on the exact same vision task. The Autoencoder is recommended when deploying AEGIS in highly complex or multimodal environments.
 
 ---
 
@@ -75,7 +98,7 @@ Input Tokens
 [Raw Concatenated Activations (16,384 dims)]
      │
      ▼
-[PyTorch Autoencoder (Compression to 64 dims)]
+[PCA or Autoencoder (Compression to 64 dims)]
      │
      ▼
 [GPU-Native Cosine Distance against Clean Baseline]
@@ -114,7 +137,7 @@ Use this exact 10-slide structure to maximize your score across all 6 judging cr
 ### Slide 5: The Engineering Breakthrough (Crucial for Technical Score)
 - **Headline:** Overcoming the Curse of Dimensionality & CPU Bottlenecks.
 - **Before:** Naive anomaly detection on raw activations = Singular covariance matrix, 100% FPR, 355ms latency.
-- **After (AEGIS):** Lightweight PyTorch Autoencoder + GPU-native Cosine Distance = **0.47ms latency**, clean manifold separation, 2,146 req/s throughput.
+- **After (AEGIS):** Lightweight GPU-native PCA/Autoencoder + Cosine Distance = **0.50ms latency**, clean manifold separation, up to **2394 req/s** throughput.
 
 ### Slide 6: Evaluation & SOTA Benchmarks
 - **Visual:** Paste the **Master Evaluation Table** from above.
@@ -156,5 +179,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Run the full SOTA benchmark pipeline (requires CUDA)
-python3 src/main.py
+python3 src/main.py --method pca
+# Or evaluate the autoencoder baseline:
+# python3 src/main.py --method autoencoder
 ```

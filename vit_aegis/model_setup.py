@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 from transformers import ViTConfig, ViTForImageClassification
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
 
 class ViTBackdoorSimulator:
     """
@@ -18,14 +21,32 @@ class ViTBackdoorSimulator:
             ignore_mismatched_sizes=True
         ).to(self.device)
         self.model.eval()
+        
+        # Initialize CIFAR-10 dataset for real images
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        
+        # Download and load dataset
+        self.dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=self.transform)
+        self.dataloader = DataLoader(self.dataset, batch_size=100, shuffle=True, drop_last=True)
+        self.data_iter = iter(self.dataloader)
 
-    def generate_synthetic_data(self, batch_size=32, poisoned=False):
-        """Generates synthetic normalized image tensors [B, 3, 224, 224]."""
-        images = torch.randn(batch_size, 3, 224, 224).to(self.device)
+    def get_dataset_images(self, batch_size=32, poisoned=False):
+        """Fetches real images from CIFAR-10 [B, 3, 224, 224]."""
+        try:
+            images, _ = next(self.data_iter)
+        except StopIteration:
+            self.data_iter = iter(self.dataloader)
+            images, _ = next(self.data_iter)
+            
+        images = images[:batch_size].to(self.device)
         
         if poisoned:
-            # BadNets visual trigger: inject a 4x4 white pixel patch at the bottom right
-            images[:, :, -4:, -4:] = 3.0
+            # BadNets visual trigger: inject a 16x16 white pixel patch at the bottom right
+            images[:, :, -16:, -16:] = 3.0
             
         return images
 
@@ -45,10 +66,10 @@ class ViTBackdoorSimulator:
                 optimizer.zero_grad()
                 
                 half_b = max(1, batch_size // 2)
-                clean_imgs = self.generate_synthetic_data(half_b, poisoned=False)
+                clean_imgs = self.get_dataset_images(half_b, poisoned=False)
                 clean_labels = torch.zeros(half_b, dtype=torch.long, device=self.device)
                 
-                poison_imgs = self.generate_synthetic_data(half_b, poisoned=True)
+                poison_imgs = self.get_dataset_images(half_b, poisoned=True)
                 poison_labels = torch.ones(half_b, dtype=torch.long, device=self.device)
                 
                 x = torch.cat([clean_imgs, poison_imgs], dim=0)

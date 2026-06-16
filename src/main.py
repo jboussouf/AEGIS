@@ -41,6 +41,13 @@ def main():
         help="Autoencoder training epochs during baseline fitting.",
     )
     parser.add_argument(
+        "--method",
+        type=str,
+        choices=["autoencoder", "pca"],
+        default="pca",
+        help="Dimensionality reduction method to use for the latent shield.",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default=None,
@@ -85,6 +92,7 @@ def main():
         target_layers=None,    # dynamic: [25%, 50%, 75%, 100%] of depth
         latent_dim=args.latent_dim,
         device=device,
+        method=args.method,
     )
     print("Shield initialised and layer hooks registered.\n")
 
