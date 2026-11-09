@@ -1,4 +1,4 @@
-# AEGIS — Activation Evaluation & Guardrail for Inference Security
+# AEGIS: Activation Evaluation & Guardrail for Inference Security
 
 > Real-time, layer-guided backdoor detection for deployed Large Language Models.  
 > Built for **Brainwave 2026** | Apache 2.0 License

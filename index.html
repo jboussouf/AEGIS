@@ -682,6 +682,7 @@
     <a href="#eval">Evaluation</a>
     <a href="#demo">Demo</a>
     <a href="#deploy">Deployment</a>
+    <a href="#citation">Citation</a>
   </div>
   <span class="nav-badge">Brainwave 2026</span>
 </nav>
@@ -1186,6 +1187,29 @@ python3 src/main.py</div>
   </section>
 
   <hr class="divider">
+
+  <!-- Citation -->
+  <section id="citation" class="fade-in">
+    <div class="section-label">07 — Citation</div>
+    <div class="section-title">Cite this project.</div>
+    <p class="section-body">If you use AEGIS in your research or applications, please cite our paper:</p>
+
+    <div style="margin-top: 1.5rem; position: relative;">
+      <div class="code-block" id="citation-bibtex" style="font-size: 12px; line-height: 1.6;"><span class="kw">@article</span>{<span class="nm">boussouf2026aegis</span>,
+  title={<span class="st">AEGIS: Real-Time Latent-Space Backdoor Detection for Dependable and Secure Small Language Model Inference</span>},
+  author={<span class="st">Boussouf, Jamal and Lamaakal, Ismail and Ouahbi, Ibrahim and Makkaoui, Khalid El and Zaydi, Mounia and Zouari, Belhassen</span>},
+  journal={<span class="st">Technologies</span>},
+  volume={<span class="nm">14</span>},
+  number={<span class="nm">10</span>},
+  pages={<span class="st">636</span>},
+  year={<span class="nm">2026</span>},
+  publisher={<span class="st">MDPI</span>}
+}</div>
+      <button class="preset" onclick="copyCitation()" id="copy-btn" style="position: absolute; top: 12px; right: 12px;">Copy BibTeX</button>
+    </div>
+  </section>
+
+  <hr class="divider">
 </div>
 
 <!-- Footer -->
@@ -1262,6 +1286,31 @@ python3 src/main.py</div>
           }, 200);
         }
       }, i * 280);
+    });
+  }
+
+  // ── Copy Citation ──
+  function copyCitation() {
+    const bibtex = `@article{boussouf2026aegis,
+  title={AEGIS: Real-Time Latent-Space Backdoor Detection for Dependable and Secure Small Language Model Inference},
+  author={Boussouf, Jamal and Lamaakal, Ismail and Ouahbi, Ibrahim and Makkaoui, Khalid El and Zaydi, Mounia and Zouari, Belhassen},
+  journal={Technologies},
+  volume={14},
+  number={10},
+  pages={636},
+  year={2026},
+  publisher={MDPI}
+}`;
+    navigator.clipboard.writeText(bibtex).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.style.borderColor = 'var(--green)';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => {
+        btn.textContent = 'Copy BibTeX';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }, 2000);
     });
   }
 </script>
