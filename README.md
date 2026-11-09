@@ -18,6 +18,7 @@
 4. [Data Flow](#data-flow)
 5. [Brainwave 2026 Presentation Blueprint](#brainwave-2026-presentation-blueprint)
 6. [Installation & Execution](#installation--execution)
+7. [Citation](#citation)
 
 ---
 
@@ -195,4 +196,23 @@ pip install -r requirements.txt
 python3 src/main.py --method pca
 # Or evaluate the autoencoder baseline:
 # python3 src/main.py --method autoencoder
+```
+
+---
+
+## Citation
+
+If you use AEGIS in your research, please cite:
+
+```bibtex
+@article{boussouf2026aegis,
+  title={AEGIS: Real-Time Latent-Space Backdoor Detection for Dependable and Secure Small Language Model Inference},
+  author={Boussouf, Jamal and Lamaakal, Ismail and Ouahbi, Ibrahim and Makkaoui, Khalid El and Zaydi, Mounia and Zouari, Belhassen},
+  journal={Technologies},
+  volume={14},
+  number={10},
+  pages={636},
+  year={2026},
+  publisher={MDPI}
+}
 ```
